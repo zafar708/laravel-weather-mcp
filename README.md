@@ -69,7 +69,7 @@ Laravel 13 · `laravel/mcp` ^1.0 · SQLite (default, no database server to set u
 ## Installation
 
 ```bash
-git clone <your-repo-url> laravel-weather-mcp
+git clone https://github.com/zafar708/laravel-weather-mcp.git
 cd laravel-weather-mcp
 composer setup
 ```
