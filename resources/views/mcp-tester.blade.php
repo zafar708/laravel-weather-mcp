@@ -4,9 +4,9 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>MCP Weather Tester</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
-<body class="bg-slate-100 min-h-screen py-10 px-4">
+<body class="min-h-screen bg-slate-100 px-4 py-10 font-sans">
     <div class="mx-auto max-w-3xl space-y-6">
 
         <header>

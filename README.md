@@ -59,7 +59,7 @@ the moment you install it.
 
 - PHP **8.3+** (developed on 8.4)
 - Composer
-- Node.js 18+ and npm — only for the frontend build
+- Node.js 18+ and npm — the browser tester is styled with Tailwind, built through Vite
 - Outbound internet access, for the Open-Meteo API
 
 Laravel 13 · `laravel/mcp` ^1.0 · SQLite (default, no database server to set up)
@@ -117,6 +117,10 @@ A small page with three buttons that send **real JSON-RPC requests** to the MCP 
 - **List tools** — what the server advertises (this is `tools/list`)
 - **Current weather** — live conditions
 - **When will it rain?** — next rain plus a 7-day chart
+
+The page is styled with Tailwind and loaded through Vite, so the assets must be built.
+`composer setup` does this for you. While changing the page, run `npm run dev` for hot
+reloading, or `npm run build` once if you only want to view it.
 
 Each button shows a formatted result on top and the **raw JSON-RPC response** below, so you
 can watch the protocol itself. This is the fastest way to understand what MCP is actually
