@@ -25,26 +25,36 @@
                 </div>
                 <h2 class="text-xl font-semibold">What would you like to know?</h2>
                 <p class="mt-2 text-sm leading-6 text-slate-500">
-                    Ask me to list the sample users or find someone by name or email. Your question is sent to the Users MCP tool.
+                    Search the sample users by name or email, by the first letters of the name, or limit how many are returned. The filters are sent straight to the Users MCP tool, with no AI in between.
                 </p>
-                <p class="mt-4 text-xs text-slate-400">Try: “Show all users” or “Find Amina Khan”</p>
+                <p class="mt-4 text-xs text-slate-400">Leave every field empty to list all users. For plain-language questions, use the AI chat.</p>
             </section>
         </main>
 
         <form id="chat-form" class="border-t border-slate-200 bg-white px-4 py-4 sm:px-8">
-            <label for="question" class="sr-only">Your question</label>
-            <div class="flex items-end gap-3 rounded-2xl border border-slate-300 bg-white p-2 shadow-sm transition focus-within:border-indigo-400 focus-within:ring-4 focus-within:ring-indigo-100">
-                <textarea id="question" name="question" rows="1" maxlength="500" required
-                          placeholder="Ask a question about the sample users..."
-                          class="max-h-32 min-h-11 flex-1 resize-y border-0 bg-transparent px-3 py-2.5 text-sm outline-none placeholder:text-slate-400"
-                          aria-describedby="chat-hint"></textarea>
+            <div class="flex flex-wrap items-end gap-3 rounded-2xl border border-slate-300 bg-white p-2 shadow-sm transition focus-within:border-indigo-400 focus-within:ring-4 focus-within:ring-indigo-100">
+                <label class="flex min-w-48 flex-1 flex-col gap-1 px-2 text-xs font-medium text-slate-500">
+                    Name or email
+                    <input id="search" name="search" type="text" maxlength="100" placeholder="e.g. Zafar"
+                           class="h-9 border-0 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400">
+                </label>
+                <label class="flex w-28 flex-col gap-1 px-2 text-xs font-medium text-slate-500">
+                    Starts with
+                    <input id="starts-with" name="starts_with" type="text" maxlength="20" placeholder="e.g. Z"
+                           class="h-9 border-0 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400">
+                </label>
+                <label class="flex w-20 flex-col gap-1 px-2 text-xs font-medium text-slate-500">
+                    Limit
+                    <input id="limit" name="limit" type="number" min="1" max="50" placeholder="50"
+                           class="h-9 border-0 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400">
+                </label>
                 <button id="send-button" type="submit"
                         class="inline-flex h-11 shrink-0 items-center justify-center rounded-xl bg-indigo-600 px-4 text-sm font-medium text-white transition hover:bg-indigo-700 focus:outline-none focus:ring-4 focus:ring-indigo-200 disabled:cursor-not-allowed disabled:bg-slate-300">
-                    Send
+                    Search
                 </button>
             </div>
-            <p id="chat-hint" class="mt-2 text-center text-xs text-slate-400">
-                Replies are generated from dummy records only. Press Enter to send; Shift+Enter for a new line.
+            <p class="mt-2 text-center text-xs text-slate-400">
+                Results come from dummy records only.
             </p>
         </form>
     </div>
@@ -52,7 +62,9 @@
     <script>
         const endpoint = @json(url('/mcp/users'));
         const chatForm = document.getElementById('chat-form');
-        const questionInput = document.getElementById('question');
+        const searchInput = document.getElementById('search');
+        const startsWithInput = document.getElementById('starts-with');
+        const limitInput = document.getElementById('limit');
         const sendButton = document.getElementById('send-button');
         const messages = document.getElementById('messages');
         const welcome = document.getElementById('welcome');
@@ -101,7 +113,7 @@
             return row;
         }
 
-        async function askUsers(question) {
+        async function searchUsers(filters) {
             const response = await fetch(endpoint, {
                 method: 'POST',
                 headers: {
@@ -114,7 +126,7 @@
                     method: 'tools/call',
                     params: {
                         name: 'user-information-tool',
-                        arguments: { question },
+                        arguments: filters,
                     },
                 }),
             });
@@ -144,21 +156,36 @@
         chatForm.addEventListener('submit', async event => {
             event.preventDefault();
 
-            const question = questionInput.value.trim();
-
-            if (!question || sendButton.disabled) {
+            if (sendButton.disabled) {
                 return;
             }
 
+            const filters = {};
+            const labels = [];
+
+            if (searchInput.value.trim()) {
+                filters.search = searchInput.value.trim();
+                labels.push(`Name or email: ${filters.search}`);
+            }
+
+            if (startsWithInput.value.trim()) {
+                filters.starts_with = startsWithInput.value.trim();
+                labels.push(`Starts with: ${filters.starts_with}`);
+            }
+
+            if (limitInput.value) {
+                filters.limit = Number(limitInput.value);
+                labels.push(`Limit: ${filters.limit}`);
+            }
+
             welcome.hidden = true;
-            addMessage('user', question);
-            questionInput.value = '';
+            addMessage('user', labels.length > 0 ? labels.join(' · ') : 'All users');
             sendButton.disabled = true;
             sendButton.textContent = '...';
             const status = addMessage('assistant', 'Searching the sample users...');
 
             try {
-                const result = await askUsers(question);
+                const result = await searchUsers(filters);
                 status.remove();
                 addMessage('assistant', result.answer, result.users);
             } catch (error) {
@@ -167,15 +194,8 @@
                 addMessage('assistant', error.message || 'Could not get a reply. Please try again.', [], true);
             } finally {
                 sendButton.disabled = false;
-                sendButton.textContent = 'Send';
-                questionInput.focus();
-            }
-        });
-
-        questionInput.addEventListener('keydown', event => {
-            if (event.key === 'Enter' && !event.shiftKey) {
-                event.preventDefault();
-                chatForm.requestSubmit();
+                sendButton.textContent = 'Search';
+                searchInput.focus();
             }
         });
     </script>

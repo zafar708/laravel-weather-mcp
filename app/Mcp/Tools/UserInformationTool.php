@@ -4,73 +4,43 @@ namespace App\Mcp\Tools;
 
 use App\Models\User;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\JsonSchema\Types\Type;
-use Illuminate\Support\Str;
 use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
 use Laravel\Mcp\Server\Attributes\Description;
 use Laravel\Mcp\Server\Tool;
 
-#[Description('Searches the seeded dummy users and returns matching names and email addresses.')]
+#[Description('Lists the seeded dummy users in ID order, optionally filtered by name or email, by the first letters of the name, and limited to a number of results. Call it with no arguments to list every dummy user.')]
 class UserInformationTool extends Tool
 {
-    private const IGNORED_QUERY_WORDS = [
-        'a', 'about', 'all', 'an', 'and', 'any', 'bata', 'batao', 'beginning',
-        'begins', 'customer', 'customers', 'details', 'do', 'does', 'email',
-        'exist', 'exists', 'find', 'for', 'get', 'give', 'hai', 'hain', 'has',
-        'i', 'info', 'information', 'is', 'ka', 'ke', 'ki', 'kro', 'kry',
-        'list', 'me', 'mera', 'mere', 'mujhe', 'mujhy', 'name', 'of', 'please',
-        'return', 'show', 'start', 'starting', 'starts', 'table', 'tamam', 'the',
-        'there', 'user', 'users', 'what', 'which', 'who', 'with',
-    ];
-
     /**
      * Handle the tool request.
      */
     public function handle(Request $request): Response
     {
         $request->validate([
-            'question' => ['required', 'string', 'max:500'],
+            'search' => ['sometimes', 'nullable', 'string', 'max:100'],
+            'starts_with' => ['sometimes', 'nullable', 'string', 'max:20'],
+            'limit' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:50'],
         ]);
 
-        $question = $request->string('question')->toString();
-        $nameStartsWith = null;
-
-        if (preg_match('/\b(?:start(?:ing|s)?|begin(?:ning|s)?)\s+with\s+([\p{L}\p{N}])/iu', $question, $prefixMatch) === 1) {
-            $nameStartsWith = Str::lower($prefixMatch[1]);
-            $question = Str::replace($prefixMatch[0], ' ', $question);
-        }
-
-        $terms = collect(preg_split(
-            '/[^\p{L}\p{N}@._+-]+/u',
-            Str::lower($question),
-            -1,
-            PREG_SPLIT_NO_EMPTY,
-        ))
-            ->reject(fn (string $term): bool => in_array($term, self::IGNORED_QUERY_WORDS, true))
-            ->values();
+        $search = trim((string) $request->get('search'));
+        $startsWith = trim((string) $request->get('starts_with'));
+        $limit = (int) ($request->get('limit') ?? 50);
 
         $users = User::query()
             ->where('email', 'like', 'dummy.user.%@example.test')
-            ->when($nameStartsWith !== null, function (Builder $query) use ($nameStartsWith): void {
-                $query->where('name', 'like', $nameStartsWith.'%');
-            })
-            ->when($terms->isNotEmpty(), function (Builder $query) use ($terms): void {
-                foreach ($terms as $term) {
-                    $query->where(function (Builder $query) use ($term): void {
-                        $query->where('name', 'like', "%{$term}%")
-                            ->orWhere('email', 'like', "%{$term}%");
-                    });
-                }
-            })
+            ->when($search !== '', fn ($query) => $query->where(
+                fn ($query) => $query->where('name', 'like', "%{$search}%")->orWhere('email', 'like', "%{$search}%"),
+            ))
+            ->when($startsWith !== '', fn ($query) => $query->where('name', 'like', "{$startsWith}%"))
             ->orderBy('id')
-            ->limit(50)
+            ->limit($limit)
             ->get(['id', 'name', 'email']);
 
         $answer = $users->isEmpty()
-            ? 'No user found.'
-            : 'Found '.$users->count().' matching user'.($users->count() === 1 ? '' : 's').'.';
+            ? 'No matching dummy user found.'
+            : 'Found '.$users->count().' matching dummy user'.($users->count() === 1 ? '' : 's').'.';
 
         return Response::json([
             'answer' => $answer,
@@ -87,9 +57,15 @@ class UserInformationTool extends Tool
     public function schema(JsonSchema $schema): array
     {
         return [
-            'question' => $schema->string()
-                ->description('A question or search request about the seeded dummy users, such as "Show all users" or "Find Amina Khan".')
-                ->required(),
+            'search' => $schema->string()
+                ->description('Part of a name or email address to look for, e.g. "Amina" or "user.007". Leave empty to skip this filter.'),
+
+            'starts_with' => $schema->string()
+                ->description('Only return users whose name begins with these letters, e.g. "A" or "Ang". Leave empty to skip this filter.'),
+
+            'limit' => $schema->integer()
+                ->description('The maximum number of users to return, between 1 and 50. Users are returned in ID order, so a limit of 5 returns the first five.')
+                ->default(50),
         ];
     }
 
@@ -102,7 +78,7 @@ class UserInformationTool extends Tool
     {
         return [
             'answer' => $schema->string()->description('A short summary of the search result.')->required(),
-            'count' => $schema->integer()->description('The number of matching dummy users.')->required(),
+            'count' => $schema->integer()->description('The number of matching dummy users returned.')->required(),
             'users' => $schema->array()->description('Matching dummy user IDs, names, and email addresses.')->required(),
         ];
     }
