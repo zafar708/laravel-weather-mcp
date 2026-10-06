@@ -29,15 +29,15 @@
 
             <div class="flex flex-wrap gap-2">
                 <button onclick="listTools()"
-                        class="rounded-md bg-slate-700 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800">
+                        class="rounded-md bg-slate-700 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 cursor-pointer">
                     1. List tools
                 </button>
                 <button onclick="getWeather()"
-                        class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
+                        class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 cursor-pointer">
                     2. Current weather
                 </button>
                 <button onclick="getRain()"
-                        class="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">
+                        class="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 cursor-pointer">
                     3. When will it rain?
                 </button>
             </div>
