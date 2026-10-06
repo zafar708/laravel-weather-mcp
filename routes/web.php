@@ -7,3 +7,5 @@ Route::get('/', function () {
 });
 
 Route::view('/mcp-tester', 'mcp-tester');
+
+Route::view('/users-chat', 'users-chat')->name('users-chat');

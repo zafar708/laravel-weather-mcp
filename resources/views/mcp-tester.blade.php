@@ -1,12 +1,9 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>MCP Weather Tester</title>
-    @vite(['resources/css/app.css', 'resources/js/app.js'])
-</head>
-<body class="min-h-screen bg-slate-100 px-4 py-10 font-sans">
+@extends('layouts.app')
+
+@section('title', 'MCP Weather Tester')
+@section('body-class', 'min-h-screen bg-slate-100 px-4 py-10 font-sans')
+
+@section('content')
     <div class="mx-auto max-w-3xl space-y-6">
 
         <header>
@@ -211,5 +208,4 @@ async function getRain() {
     `);
 }
 </script>
-</body>
-</html>
+@endsection

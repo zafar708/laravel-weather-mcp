@@ -1,10 +1,10 @@
 # Laravel Weather MCP Server
 
-A small, complete example of building an **MCP (Model Context Protocol) server in Laravel**.
+A small example of building **MCP (Model Context Protocol) servers in Laravel**.
 
-It exposes live weather data as two tools that any AI assistant — Claude Code, Claude
-Desktop, Cursor — can call directly. Ask *"when will it rain in Narowal?"* in your
-assistant and it will call this Laravel app and answer from real data.
+It exposes live weather data and a searchable set of 50 seeded dummy users as MCP tools.
+Ask *"when will it rain in Narowal?"* in an AI assistant, or search sample users in the
+browser chat.
 
 The project is deliberately small. It is meant to be **read**, not just run: if you want to
 understand how `laravel/mcp` fits together, this is roughly the smallest useful thing you
@@ -23,7 +23,10 @@ MCP-compatible client can use it. This repo is the server side of that conversat
 
 ## What this app does
 
-Two tools, both backed by the free [Open-Meteo](https://open-meteo.com) API:
+The app registers two MCP servers:
+
+**Weather server** — two tools backed by the free [Open-Meteo](https://open-meteo.com)
+API:
 
 | Tool | Answers | Example input |
 |---|---|---|
@@ -31,6 +34,16 @@ Two tools, both backed by the free [Open-Meteo](https://open-meteo.com) API:
 | `rain-forecast-tool` | **When** will it next rain? Plus a 7-day outlook. | `{"location": "Narowal", "days": 7}` |
 
 Both accept a plain place name. Geocoding (name → coordinates) happens for you.
+
+**Users server** — searches up to 50 dummy user records in the `users` table:
+
+| Tool | Answers | Example input |
+|---|---|---|
+| `user-information-tool` | Find sample users by name/email, search names by first letter, or list sample users. | `{"question": "Find Angus customer details"}` |
+
+The users tool only returns records with the `dummy.user.*@example.test` email pattern.
+It returns matching user IDs, names, and email addresses; it never returns passwords or
+other account records.
 
 Sample response from `rain-forecast-tool`:
 
@@ -50,8 +63,7 @@ Sample response from `rain-forecast-tool`:
 }
 ```
 
-**No API key is needed.** Open-Meteo is free and unauthenticated, so the project works
-the moment you install it.
+**No API key is needed for the weather tools.** Open-Meteo is free and unauthenticated.
 
 ---
 
@@ -97,16 +109,24 @@ Then start the app:
 php artisan serve
 ```
 
-Visit **http://localhost:8000/mcp-tester** to try it in your browser.
+Seed sample users, then visit **http://localhost:8000/mcp-tester** for the weather tools
+or **http://localhost:8000/users-chat** to chat with the users MCP tool:
+
+```bash
+php artisan db:seed
+```
 
 > Migrations are Laravel's default tables (users, cache, jobs). The weather tools do not
-> use the database at all — they call Open-Meteo directly.
+> use the database at all — they call Open-Meteo directly. The users tool needs the seeded
+> dummy records; `php artisan db:seed` can be run again safely.
 
 ---
 
-## Three ways to use it
+## Ways to use it
 
-### 1. Browser tester (start here)
+### 1. Browser tools (start here)
+
+#### Weather tester
 
 ```
 http://localhost:8000/mcp-tester
@@ -126,6 +146,17 @@ Each button shows a formatted result on top and the **raw JSON-RPC response** be
 can watch the protocol itself. This is the fastest way to understand what MCP is actually
 exchanging.
 
+#### Users chat
+
+```
+http://localhost:8000/users-chat
+```
+
+Ask questions such as **"Find the Angus customer details"** or
+**"Is there any customer name starting with A?"**. Questions and replies stay visible in
+the chat, and the page calls `user-information-tool` through `POST /mcp/users`. Run
+`php artisan db:seed` first if the sample users have not been seeded yet.
+
 ### 2. From an AI assistant
 
 The repo ships a `.mcp.json`, so **Claude Code picks the server up automatically** when you
@@ -133,12 +164,27 @@ open the project. Reload your editor, then ask:
 
 > "When will it rain in Narowal?"
 
-For other clients, register the local server with:
+The `.mcp.json` currently registers the weather server. To let Claude Code use the users
+server too, add this entry to its `mcpServers` object:
+
+```json
+"users": {
+    "command": "php",
+    "args": ["artisan", "mcp:start", "users"]
+}
+```
+
+Reload your editor and ask questions such as **"Find the Angus customer details"**. Make
+sure the sample users have been seeded with `php artisan db:seed`.
+
+For other clients, register a local server with:
 
 ```
 command: php
 args:    ["artisan", "mcp:start", "weather"]
 ```
+
+For the users server, use `["artisan", "mcp:start", "users"]`.
 
 > Do not run `php artisan mcp:start weather` by hand in a terminal — it waits on stdin and
 > will appear to hang. It is meant to be launched by an MCP client.
@@ -148,6 +194,8 @@ The official inspector is the best debugging UI:
 ```bash
 php artisan mcp:inspector weather       # local (stdio) server
 php artisan mcp:inspector mcp/weather   # HTTP server
+php artisan mcp:inspector users         # local users server
+php artisan mcp:inspector mcp/users     # HTTP users server
 ```
 
 ### 3. Over HTTP
@@ -172,17 +220,33 @@ curl -X POST http://localhost:8000/mcp/weather \
 > Opening `/mcp/weather` in the address bar will not work. Tool calls are **POST**
 > JSON-RPC; a browser address bar sends GET.
 
+The dummy-user server is exposed at `POST /mcp/users`. For example, search for users by
+name:
+
+```bash
+curl -X POST http://localhost:8000/mcp/users \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call",
+       "params":{"name":"user-information-tool","arguments":{"question":"Find Angus customer details"}}}'
+```
+
+To list the available user tools, send `{"jsonrpc":"2.0","id":1,"method":"tools/list"}` to
+the same endpoint.
+
 ---
 
 ## How the code fits together
 
 ```
-routes/ai.php                          Registers the server (local + web)
-└── app/Mcp/Servers/WeatherServer.php   Declares which tools exist
-    ├── app/Mcp/Tools/CurrentWeatherTool.php
-    └── app/Mcp/Tools/RainForecastTool.php
-            ├── app/Actions/ResolveLocation.php     place name → coordinates
-            └── app/Support/WeatherConditions.php   WMO codes → plain English
+routes/ai.php                          Registers both servers (local + web)
+├── app/Mcp/Servers/WeatherServer.php  Declares the weather tools
+│   ├── app/Mcp/Tools/CurrentWeatherTool.php
+│   └── app/Mcp/Tools/RainForecastTool.php
+│       ├── app/Actions/ResolveLocation.php     place name → coordinates
+│       └── app/Support/WeatherConditions.php   WMO codes → plain English
+└── app/Mcp/Servers/UserServer.php     Declares the dummy-user tool
+    └── app/Mcp/Tools/UserInformationTool.php
+            └── database/seeders/DummyUsersSeeder.php
 ```
 
 A tool is just a class with three parts:
@@ -202,11 +266,15 @@ only documentation the AI ever sees. Run the **List tools** button and you will 
 come back verbatim in the JSON. A vague description means the model misuses the tool or
 skips it entirely.
 
-`routes/ai.php` registers the same server two ways:
+`routes/ai.php` registers each server for local stdio clients and over HTTP:
 
 ```php
 Mcp::local('weather', WeatherServer::class);                 // stdio, for local AI clients
 Mcp::web('/mcp/weather', WeatherServer::class)               // HTTP, for remote clients
+    ->middleware(['throttle:60,1']);
+
+Mcp::local('users', UserServer::class);
+Mcp::web('/mcp/users', UserServer::class)
     ->middleware(['throttle:60,1']);
 ```
 
@@ -218,8 +286,9 @@ Mcp::web('/mcp/weather', WeatherServer::class)               // HTTP, for remote
 composer test
 ```
 
-14 passing tests. The weather tests fake all HTTP calls, so the suite is fast, offline, and
-deterministic. `laravel/mcp` lets you invoke a tool directly:
+The weather tests fake outbound HTTP calls, so they are fast, offline, and deterministic.
+Feature tests also cover the user chat, dummy-user searches, and MCP HTTP endpoint.
+`laravel/mcp` lets you invoke a tool directly:
 
 ```php
 WeatherServer::tool(RainForecastTool::class, ['location' => 'Narowal'])
@@ -237,17 +306,19 @@ Code style:
 
 ## Things worth knowing before you build on this
 
-**The web endpoint has no authentication.** `/mcp/weather` is open, rate-limited only by
-`throttle:60,1`. That is fine for public weather data on your machine. Before deploying
-anything that touches private data, add real auth:
+**The web endpoints have no authentication.** `/mcp/weather` and `/mcp/users` are open,
+rate-limited only by `throttle:60,1`. The users tool is restricted to the seeded dummy
+email pattern, but do not change it to return real or private account data without adding
+authentication and authorization first:
 
 ```php
 Mcp::web('/mcp/weather', WeatherServer::class)
     ->middleware(['auth:sanctum']);
 ```
 
-**`/mcp-tester` is a development page.** It is unauthenticated and exposes your MCP
-endpoint through the browser. Remove it or protect it before going to production.
+**`/mcp-tester` and `/users-chat` are development pages.** They are unauthenticated and
+expose their respective MCP endpoints through the browser. Remove them or protect them
+before going to production.
 
 **Tool names are derived from class names.** `RainForecastTool` becomes
 `rain-forecast-tool`. If you want a different name, set it explicitly:
@@ -269,7 +340,7 @@ protected int $threshold = 50;  // 30 = more alerts, 70 = only near-certain rain
 
 Tools are one of three MCP primitives. This project only uses tools; **resources**
 (read-only data the AI can pull in) and **prompts** (reusable prompt templates) are
-registered the same way, in `WeatherServer`:
+registered the same way, in either MCP server:
 
 ```bash
 php artisan make:mcp-resource WeatherGuidelines
