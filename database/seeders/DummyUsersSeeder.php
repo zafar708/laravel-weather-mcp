@@ -21,6 +21,7 @@ class DummyUsersSeeder extends Seeder
                 [
                     'name' => fake()->name(),
                     'password' => Str::random(40),
+                    'email_verified_at' => now(),
                 ],
             );
         }
