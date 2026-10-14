@@ -18,6 +18,17 @@ it('renders the account settings page', function () {
         ->assertSee('value="amina@example.test"', false);
 });
 
+it('renders the desktop notification toggle with the public VAPID key', function () {
+    config(['webpush.vapid.public_key' => 'test-public-key']);
+
+    $this->actingAs(User::factory()->create())
+        ->withSession(['auth.password_confirmed_at' => time()])
+        ->get(route('profile.edit'))
+        ->assertOk()
+        ->assertSee('data-vapid-key="test-public-key"', false)
+        ->assertSee('data-url="'.route('push-subscriptions.store').'"', false);
+});
+
 it('updates the name and keeps an unchanged email verified', function () {
     $user = User::factory()->create();
 

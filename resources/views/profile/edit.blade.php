@@ -65,6 +65,31 @@
             </form>
         </section>
 
+        {{-- Desktop notifications --}}
+        <section class="rounded-3xl bg-white p-8 shadow-xl">
+            <h2 class="text-lg font-semibold text-slate-900">Desktop notifications</h2>
+            <p class="mt-1 max-w-xl text-sm text-slate-600">
+                Get an alert in the corner of your screen when your password changes, even when this site isn't open.
+                This is set per browser, so enable it on each browser you use.
+            </p>
+
+            <div class="mt-6 flex flex-wrap items-center gap-4">
+                <x-button
+                    type="button"
+                    variant="secondary"
+                    data-push-toggle
+                    data-vapid-key="{{ config('webpush.vapid.public_key') }}"
+                    data-url="{{ route('push-subscriptions.store') }}"
+                    data-csrf="{{ csrf_token() }}"
+                    disabled
+                >
+                    Checking browser support…
+                </x-button>
+
+                <p class="text-sm text-emerald-700" data-push-status role="status"></p>
+            </div>
+        </section>
+
         {{-- Delete account --}}
         <section class="rounded-3xl border border-red-100 bg-white p-8 shadow-xl">
             <h2 class="text-lg font-semibold text-red-700">Delete account</h2>

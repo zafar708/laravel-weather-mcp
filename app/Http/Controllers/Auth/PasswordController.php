@@ -12,6 +12,10 @@ class PasswordController extends Controller
 {
     /**
      * Change the signed-in user's password.
+     *
+     * The security alert is queued and best-effort: if it cannot be queued (or
+     * sent, on the sync driver) the error is reported, but must not turn an
+     * already-saved password change into an error.
      */
     public function update(Request $request): RedirectResponse
     {
@@ -24,7 +28,7 @@ class PasswordController extends Controller
             'password' => $validated['password'],
         ]);
 
-        $request->user()->notify(new PasswordChangedNotification);
+        rescue(fn () => $request->user()->notify(new PasswordChangedNotification));
 
         return back()->with('status', 'password-updated');
     }

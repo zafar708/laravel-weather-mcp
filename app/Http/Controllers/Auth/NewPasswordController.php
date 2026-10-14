@@ -28,6 +28,9 @@ class NewPasswordController extends Controller
 
     /**
      * Reset the user's password using the emailed token.
+     *
+     * The security alert is queued and best-effort, so a failure to queue
+     * (or send, on the sync driver) it is reported without breaking the reset.
      */
     public function store(ResetPasswordRequest $request): RedirectResponse
     {
@@ -41,7 +44,7 @@ class NewPasswordController extends Controller
 
                 event(new PasswordReset($user));
 
-                $user->notify(new PasswordChangedNotification);
+                rescue(fn () => $user->notify(new PasswordChangedNotification));
             },
         );
 
